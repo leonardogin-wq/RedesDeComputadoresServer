@@ -1,9 +1,18 @@
 from socket import *
-serverPort = 8108
+serverPort = 8012
 serverSocket = socket(AF_INET,SOCK_STREAM)
 serverSocket.bind(("",serverPort))
 serverSocket.listen(2)
 print("socket aberto")
+userNumber = 0
+users = []
+
+with open("usuarios.html", "w") as f: #reinicia os usuarios cadastrados
+    f.write("<body>\n")
+    f.write("    <h1>Usuarios cadastrados</h1>\n")
+    f.write("    <p>Nenhum usuario cadastrado</p>\n")
+    f.write('    <a href="/index.html">voltar para index</a>\n')
+    f.write("</body>")
 
 def get_content_type(path):
     if path.endswith(".html"):
@@ -19,13 +28,11 @@ def get_content_type(path):
     else:
         return "application/octet-stream"
 
-
 def resposta_get(path): #resposta pro web browser
     if path == "/":
         path = "index.html"
     else:
         path = path[1:] # Remove a barra inicial
-    #ArquivoRequerido = open(path, "r").read()
     try:
         with open(path, "rb") as f:
             conteudo = f.read()
@@ -69,18 +76,12 @@ def receber_request(clientSocket):
 
 while True:
     clientSocket, addr = serverSocket.accept()
-    print("conectado: ", addr)
     
     headers, body = receber_request(clientSocket)
-    # duplicados abaixo (REMOVER)
-    #request_line = headers.split("\r\n")[0]
-    #method, path, version = request_line.split(" ")
 
     if not headers:
         clientSocket.close()
         continue
-    
-    print(headers)
 
     request_line = headers.split("\r\n")[0] #request_line é a primeira linha da requisição
     method, path, version = request_line.split(" ") #GET/POST | O CAMINHO DO ARQUIVO QUE PEDE | VERSAO HTTP
@@ -90,12 +91,17 @@ while True:
         clientSocket.send(resposta)
            
     elif method == "POST":
-        print("BODY:", body)
+        body = body.decode()
+        pares = body.split('&')
+        nome = pares[0].split('=')[1]
+        idade = pares[1].split('=')[1]
+        users.append({"name": nome, "age": idade})  #corta o POST para pegar o nome e idade e salva em uma lista de usuarios
+        print(f"Resposta POST tratado: Nome = {users[userNumber]['name']} Idade = {users[userNumber]['age']}")
         resposta_body = f"""
         <html>
             <body>
                 <h1>POST recebido</h1>
-                <p>{body.decode()}</p>
+                <p>POST: Nome = {users[userNumber]['name']} | Idade = {users[userNumber]['age']}</p>
                 <p>Retornar para formulario: <a href="/post.html">Formulario POST</a></p>
             </body>
         </html>
@@ -107,6 +113,15 @@ while True:
             "\r\n"
             + resposta_body
         ).encode()
+        with open("usuarios.html", "w") as f: #atualiza a pagina de usuarios cadastrados
+            f.write("<body>\n")
+            f.write("    <h1>Usuarios cadastrados</h1>\n")
+            for i in range(userNumber+1):
+                f.write(f"    <p>Usuario {i}: Nome = {users[i]['name']} | Idade = {users[i]['age']}</p>\n")
+            f.write('    <a href="/index.html">voltar para index</a>\n')
+            f.write("</body>")
+
+        userNumber += 1
         clientSocket.send(resposta)
         
     clientSocket.close()
